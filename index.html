@@ -6,11 +6,12 @@
 <body>
 <button id="respective">各自比例尺</button>
 <button id="consistent">一致比例尺</button>
+<div id="chart"></div>
 <script src="d3.v5.min.js"></script>
 <script type="text/javascript">
 var offset = 220, height = 14;
 
-var svg = d3.select('body')
+var svg = d3.select('#chart')
 .append('svg')
 .attr('height', 4500)
 .attr('width', 800)
