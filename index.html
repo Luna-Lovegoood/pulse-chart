@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>test</title>
+</head>
+<body>
+<script src="d3.v5.min.js"></script>
+<script type="text/javascript">
+var offset = 220, height = 14;
+
+var svg = d3.select('body')
+.append('svg')
+.attr('height', 4500)
+.attr('width', 800)
+.attr('transform', 'translate(0, 40)')
+.style('border', 'solid 1px #000');
+
+var xScale = d3.scaleLinear()
+.domain([0, 100])
+.range([0, 400]);
+
+d3.csv('data/new_cases.csv').then(data => {
+	console.log(data);
+
+	var dataset = {};
+	for (var dim in data[0]) {
+		if (dim != 'date' && dim != 'World' && dim != 'International') {
+            dataset[dim] = [];
+        }
+	}
+	console.log(dataset);
+
+	data.forEach(d => {
+		for (var dim in d) {
+            if (dim != 'date' && dim != 'World' && dim != 'International') {
+                dataset[dim].push(+d[dim])
+            }
+		}
+	})
+	//console.log(dataset);
+    draw(dataset, 'respective')
+    
+})
+
+function draw(dataset, scale) {
+    console.log(scale);
+
+    var i = 0;
+    var yScale;
+
+    for (var country in dataset) {
+        var min = d3.min(dataset[country]);
+        var max = d3.max(dataset[country]);
+        if (scale == 'consistent') {
+            yScale = d3.scaleLinear()
+            .domain([min, max])
+            .range([height, 1]);
+        } else if (scale == 'respective') {
+            yScale = d3.scaleLog()
+            .domain([1, 34272])
+            .range([height, 1]);
+        }
+
+        var line = d3.line()
+        .x((d,i) => xScale(i))
+        .y(d => {
+            if (!yScale(d+1)) {
+                console.log(yScale(d+1), d);
+            }
+            return yScale(d+1);
+        });
+        //console.log('axis', yScale)
+
+        console.log(line(dataset[country]));
+
+        svg.append('path')
+        .attr('d', line(dataset[country]))
+        .attr('stroke', '#000')
+        .attr('fill', 'none')
+        .attr('transform', 'translate(' + offset + ', ' + i*(height+5) + ')')
+        .on('mouseover', function() {
+            d3.select(this).style('stroke', 'red').style('stroke-width', 2)
+        })
+        .on('mouseout', function() {
+            d3.select(this).style('stroke', '#000').style('stroke-width', 1)
+        });
+
+        svg.append('text')
+        .attr('y', 20)
+        .attr('transform', 'translate(' + (offset-10) + ', ' + i*(height+5) + ')')
+        .style('text-anchor', 'end')
+        .style('font-size', 12)
+        .text(country);
+
+        i++;
+    }
+}
+
+/*awsl = d3.scaleLog().base(20)
+.domain([1, 34272])
+.range([100, 1]);
+
+console.log("awsl", awsl(500))*/
+</script>
+</body>
+</html>
