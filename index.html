@@ -4,19 +4,37 @@
 	<title>test</title>
 </head>
 <body>
-<button id="respective">各自比例尺</button>
-<button id="consistent">一致比例尺</button>
 <div id="chart"></div>
 <script src="d3.v5.min.js"></script>
 <script type="text/javascript">
-var offset = 220, height = 14;
 
+// 间距 height, 线条起点横坐标 offset, 字号 text_size
+var offset = 220, height = 10, text_size = 10;
+
+// 调画布长宽
 var svg = d3.select('#chart')
 .append('svg')
 .attr('height', 4500)
 .attr('width', 800)
-.attr('transform', 'translate(0, 40)')
-.style('border', 'solid 1px #000');
+.style('border', 'solid 1px #000')
+.append('g')
+.attr('transform', 'translate(0, '+50+')');
+
+var defs = svg.append("defs");
+var linerGradient = defs.append("linearGradient")
+    .attr("id","linearColor")
+    .attr("x1","0%")
+    .attr("y1","0%")
+    .attr("x2","0%")
+    .attr("y2","100%");
+var stop1 = linerGradient.append("stop")
+    .attr("offset","0%")
+    .style("stop-color", '#F86F6D')
+    //.style("stop-opacity", 1);
+var stop2 = linerGradient.append("stop")
+    .attr("offset","100%")
+    .style("stop-color", '#64BE7B')
+    //.style("stop-opacity", 0);
 
 var xScale = d3.scaleLinear()
 .domain([0, 100])
@@ -28,37 +46,65 @@ d3.csv('data/new_cases.csv').then(data => {
 	var dataset = {};
 	for (var dim in data[0]) {
 		if (dim != 'date' && dim != 'World' && dim != 'International') {
-            dataset[dim] = [];
+            dataset[dim] = {};
+            dataset[dim].date = '';
+            dataset[dim].haveOccurred = false;
+            dataset[dim].arr = [];
         }
 	}
-	console.log(dataset);
-
-	data.forEach(d => {
-		for (var dim in d) {
-            if (dim != 'date' && dim != 'World' && dim != 'International') {
-                dataset[dim].push(+d[dim])
-            }
-		}
-	})
 	//console.log(dataset);
-    draw(dataset, 'respective');
 
-    document.getElementById('consistent').onclick = function() {
-        draw(dataset, 'consistent');
-    }
+	data.forEach((d,i) => {
+        if (i < data.length-1) {
+            for (var dim in d) {
+                if (dim != 'date' && dim != 'World' && dim != 'International') {
+                    dataset[dim].arr.push(+d[dim]);
+                    if ( +d[dim] > 0 && dataset[dim].haveOccurred == false) {
+                        dataset[dim].date = d['date'];
+                        dataset[dim].haveOccurred = true;
+                    }
+                }
+            }
+        } else {
+            for (var dim in d) {
+                if (dim != 'date' && dim != 'World' && dim != 'International') {
+                    dataset[dim].sum = +d[dim];
+                }
+            }
+        }    		
+	})
 
-    document.getElementById('respective').onclick = function() {
-        draw(dataset, 'respective');
+    var newData = [];
+    for (var country in dataset) {
+        // 调整显示数量 案例总数 > 0
+        if (dataset[country].sum > 0) {
+            var datum = {};
+            datum.country = country;
+            datum.date = dataset[country].date;
+            datum.arr = dataset[country].arr;
+            datum.sum = dataset[country].sum;
+            newData.push(datum);
+        }        
     }
+    console.log(newData);
+
+    draw(newData, 'consistent');
 })
 
 function draw(dataset, scale) {
-    svg.selectAll("*").remove();
+    svg.selectAll("text").remove();
+    svg.selectAll("path").remove();
 
     var i = 0;
     var yScale, line;
+    var linear = d3.scaleLinear()
+    .domain([1000, 100000, 500000])
+    .range(['#64BE7B', '#FFEB85', '#F86F6D']);
+
+    var c = ['#64BE7B', '#FFEB85'].reverse()
 
     for (var country in dataset) {
+    //if (i > -1) {
         var min = d3.min(dataset[country]);
         var max = d3.max(dataset[country]);
         if (scale == 'respective') {
@@ -70,51 +116,81 @@ function draw(dataset, scale) {
             .x((d,i) => xScale(i))
             .y(d => yScale(d));
         } else if (scale == 'consistent') {
-            yScale = d3.scaleLog()
+            // 线性比例尺
+            yScale = d3.scaleLinear()
             .domain([1, 34272])
-            .range([height, 1]);
+            .range([height, -200]); //-200为最高点 负的越多波峰高度越高
 
             line = d3.line()
             .x((d,i) => xScale(i))
-            .y(d => {
-                if (!yScale(d+1)) {
-                    //console.log(yScale(d+1), d);
-                }
-                return yScale(d+1);
-            });
+            .y(d => yScale(d));
+
+            // 对数比例尺
+            /*yScale = d3.scaleLog()
+            .domain([1, 34272])
+            .range([30, 1]);
+
+            line = d3.line()
+            .x((d,i) => xScale(i))
+            .y(d => yScale(d+1));*/
         }
-        //console.log('axis', yScale)
 
-        //console.log(line(dataset[country]));
+        var path_d = line(dataset[country].arr) + 'L400,' + height;
 
+        // 填充
         svg.append('path')
-        .attr('d', line(dataset[country]))
-        .attr('stroke', '#000')
-        .attr('fill', 'none')
-        .attr('transform', 'translate(' + offset + ', ' + i*(height+5) + ')')
-        .on('mouseover', function() {
-            d3.select(this).style('stroke', 'red').style('stroke-width', 2)
+        .attr('d', path_d)
+        .attr('stroke', 'none')
+        // 透明度渐变
+        .attr('fill', function() {
+            console.log(linear(dataset[country].sum))
+            var defs = svg.append("defs");
+            var linerGradient = defs.append("linearGradient")
+                .attr("id","linearColor"+i)
+                .attr("x1","0%")
+                .attr("y1","0%")
+                .attr("x2","0%")
+                .attr("y2","100%");
+            var stop1 = linerGradient.append("stop")
+                .attr("offset","0%")
+                .style("stop-color", linear(dataset[country].sum))
+                .style("stop-opacity", 1);
+            var stop2 = linerGradient.append("stop")
+                .attr("offset","100%")
+                .style("stop-color", linear(dataset[country].sum))
+                .style("stop-opacity", 0);
+            return "url(#linearColor"+i+")"
         })
-        .on('mouseout', function() {
-            d3.select(this).style('stroke', '#000').style('stroke-width', 1)
-        });
+        // 无渐变
+        //.style('fill', linear(dataset[country].sum))
+        //.style('opacity', 0.75)
+        .attr('transform', 'translate(' + offset + ', ' + i*height + ')')
+
+        // 轮廓
+        svg.append('path')
+        .attr('d', line(dataset[country].arr))
+        // 正常
+        .attr('stroke', '#000')
+        // 渐变
+        //.attr('stroke', 'url(#linearColor)')
+        .attr('fill', 'none')
+        .style('opacity', 0.75)
+        .style('stroke-width', 0.7)
+        .attr('transform', 'translate(' + offset + ', ' + i*height + ')')
 
         svg.append('text')
-        .attr('y', 20)
-        .attr('transform', 'translate(' + (offset-10) + ', ' + i*(height+5) + ')')
+        .attr('y', text_size/2)
+        .style('fill', '#000')
+        .style('stroke', 'none')
+        .attr('transform', 'translate(' + (offset-10) + ', ' + (i*height+height) + ')')
         .style('text-anchor', 'end')
-        .style('font-size', 12)
-        .text(country);
+        .style('font-size', text_size)
+        .text(dataset[country].country);
 
         i++;
+    //}
     }
 }
-
-/*awsl = d3.scaleLog().base(20)
-.domain([1, 34272])
-.range([100, 1]);
-
-console.log("awsl", awsl(500))*/
 </script>
 </body>
 </html>

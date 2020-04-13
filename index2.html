@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>test</title>
+</head>
+<body>
+<button id="respective">各自比例尺</button>
+<button id="consistent">一致比例尺</button>
+<div id="chart"></div>
+<script src="d3.v5.min.js"></script>
+<script type="text/javascript">
+var offset = 220, height = 18, peak = 500;
+
+// let linear = d3.scaleLinear().domain([0, 100, 203])/*.range([0, 1])*/.range(['#F86F6D', '#FFEB85', '#64BE7B']);
+// let compute = d3.interpolate('#F86F6D', '#FFEB85', '#64BE7B');
+
+//var colors = ['#F86F6D', '#FFEB84', '']
+
+var svg = d3.select('#chart')
+.append('svg')
+.attr('height', 4500)
+.attr('width', 800)
+.attr('transform', 'translate(0, 0)')
+.style('border', 'solid 1px #000');
+
+var xScale = d3.scaleLinear()
+.domain([0, 100])
+.range([0, 400]);
+
+d3.csv('data/total_deaths.csv').then(data => {
+    //console.log(data);
+
+    var dataset = {};
+    for (var dim in data[0]) {
+        if (dim != 'date' && dim != 'World' && dim != 'International') {
+            dataset[dim] = {};
+            dataset[dim].date = '';
+            dataset[dim].haveOccurred = false;
+            dataset[dim].arr = [];
+        }
+    }
+    //console.log(dataset);
+
+    data.forEach(d => {
+        for (var dim in d) {
+            if (dim != 'date' && dim != 'World' && dim != 'International') {
+                if (d[dim]) {
+                    dataset[dim].arr.push(+d[dim]);
+                } else {
+                    if (dataset[dim].arr.length > 0) {
+                        var last = dataset[dim].arr[dataset[dim].arr.length-1]
+                        dataset[dim].arr.push(last);
+                    } else {
+                        dataset[dim].arr.push(+d[dim]);
+                    }
+                    
+                }
+                    
+                if ( +d[dim] > 0 && dataset[dim].haveOccurred == false) {
+                    dataset[dim].date = d['date'];
+                    dataset[dim].haveOccurred = true;
+                }
+            }
+        }
+    })
+    console.log(dataset);
+    var newData = [];
+    for (var country in dataset) {
+        var datum = {};
+        datum.country = country;
+        datum.date = dataset[country].date;
+        datum.arr = dataset[country].arr;
+        newData.push(datum);
+    }
+
+    newData = newData.filter(d => d.arr[d.arr.length-1]>50)
+    newData.sort((a,b) => {
+        return Date.parse(a.date.replace(/-/g,"/"))-Date.parse(b.date.replace(/-/g,"/"));
+    });
+    console.log(newData);
+
+    draw(newData, 'consistent');
+
+    document.getElementById('consistent').onclick = function() {
+        draw(newData, 'consistent');
+    }
+
+    document.getElementById('respective').onclick = function() {
+        draw(newData, 'respective');
+    }
+})
+
+function draw(dataset, scale) {
+    svg.selectAll("*").remove();
+
+    var i = 0;
+    var yScale, line;
+    let linear = d3.scaleLinear()
+    .domain([0, dataset.length/2, dataset.length-1])
+    .range(['#F86F6D', '#FFEB85', '#64BE7B']);
+
+    for (var country in dataset) {
+        var min = d3.min(dataset[country]);
+        var max = d3.max(dataset[country]);
+        if (scale == 'respective') {
+            yScale = d3.scaleLinear()
+            .domain([min, max])
+            .range([height, 0]);
+
+            line = d3.line()
+            .x((d,i) => xScale(i))
+            .y(d => yScale(d));
+        } else if (scale == 'consistent') {
+            /*yScale = d3.scaleLinear()
+            .domain([1, 34272])
+            .range([600, 1]);
+
+            line = d3.line()
+            .x((d,i) => xScale(i))
+            .y(d => yScale(d))
+            .curve(d3.curveBasis);*/
+
+            yScale = d3.scaleLog()
+            .domain([1, 34272])
+            .range([80, 1]);
+
+            line = d3.line()
+            .x((d,i) => xScale(i))
+            .y(d => yScale(d+1))
+            //.curve(d3.curveBundle.beta(1));
+            .curve(d3.curveBasis)
+        }
+        //console.log('axis', yScale)
+        var path_d = line(dataset[country].arr)
+         + 'L400, 80';
+        //+ 'L400, 600'
+
+        //console.log(line(dataset[country].arr), path_d);
+
+        svg.append('path')
+        .attr('d', path_d)
+        .attr('stroke', '#000')
+        .attr('fill', 'none')
+        .attr('transform', 'translate(' + offset + ', ' + i*(height+5) + ')')
+        .style('fill', (linear(i)))
+        .style("opacity", 0.9)
+        .on('mouseover', function() {
+            d3.select(this).style('stroke', 'red').style('stroke-width', 2)
+        })
+        .on('mouseout', function() {
+            d3.select(this).style('stroke', '#000').style('stroke-width', 1)
+        });
+
+        svg.append('text')
+        .attr('y', 20)
+        .attr('transform', 'translate(' + (offset-10) + ', ' + (i*(height+5)+(63)) + ')')
+        .style('text-anchor', 'end')
+        .style('font-size', 9)
+        .text(dataset[country].country);
+
+        i++;
+    }
+}
+</script>
+</body>
+</html>
